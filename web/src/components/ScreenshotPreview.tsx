@@ -21,18 +21,29 @@ export function ScreenshotPreview({ url, changes }: ScreenshotPreviewProps) {
     setError('');
     
     try {
+      // 55 second timeout (Vercel functions have 60s max)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 55000);
+      
+      console.log('[Preview] Starting screenshot generation...');
+      
       const res = await fetch('/api/screenshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, changes }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
+      console.log('[Preview] Got response:', res.status);
 
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.details || err.error || 'Screenshot failed');
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.details || err.error || `Screenshot failed (${res.status})`);
       }
 
       const data = await res.json();
+      console.log('[Preview] Data received, success:', data.success);
       
       if (data.success === false) {
         throw new Error(data.error || 'Screenshot service unavailable');
@@ -47,7 +58,16 @@ export function ScreenshotPreview({ url, changes }: ScreenshotPreviewProps) {
         optimized: data.optimized,
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate screenshots');
+      console.error('[Preview] Error:', err);
+      let errorMsg = 'Failed to generate screenshots';
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          errorMsg = 'Request timed out - try again or use a simpler page';
+        } else {
+          errorMsg = err.message;
+        }
+      }
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
