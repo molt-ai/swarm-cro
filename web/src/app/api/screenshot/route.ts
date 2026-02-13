@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Stagehand } from '@browserbasehq/stagehand';
+import Browserbase from '@browserbasehq/sdk';
+import { chromium, type Browser, type Page } from 'playwright-core';
 
 export const maxDuration = 60;
 
@@ -8,12 +9,16 @@ export const maxDuration = 60;
  * Takes before/after screenshots using Browserbase
  */
 export async function POST(request: NextRequest) {
-  let stagehand: Stagehand | null = null;
+  let browser: Browser | null = null;
   
   try {
     const body = await request.json();
     const { url, changes } = body;
-    
+
+    if (!url) {
+      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+    }
+
     // Parse changes (can be JSON string or object)
     let cssChanges = '';
     let jsChanges = '';
@@ -22,102 +27,94 @@ export async function POST(request: NextRequest) {
       cssChanges = parsed?.css || '';
       jsChanges = parsed?.js || '';
     } catch {
-      // If not JSON, treat as CSS only (backwards compat)
       cssChanges = changes || '';
     }
 
-    if (!url) {
-      return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+    const apiKey = process.env.BROWSERBASE_API_KEY;
+    const projectId = process.env.BROWSERBASE_PROJECT_ID;
+
+    if (!apiKey || !projectId) {
+      // Fallback to free screenshot service
+      const fallback = await tryFallbackScreenshot(url);
+      if (fallback) {
+        return NextResponse.json({
+          success: true,
+          original: fallback,
+          optimized: null,
+          note: 'Browserbase not configured, using fallback',
+        });
+      }
+      return NextResponse.json({ 
+        error: 'BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID required' 
+      }, { status: 500 });
     }
 
     console.log('[Screenshot] Starting Browserbase session for:', url);
 
-    // Initialize Stagehand with Browserbase
-    stagehand = new Stagehand({
-      env: 'BROWSERBASE',
-      apiKey: process.env.ANTHROPIC_API_KEY,
-      browserbaseApiKey: process.env.BROWSERBASE_API_KEY,
-      headless: true,
-      enableCaching: false,
-    });
-
-    await stagehand.init();
-    const page = stagehand.page;
+    // Create Browserbase session
+    const bb = new Browserbase({ apiKey });
+    const session = await bb.sessions.create({ projectId });
+    
+    // Connect via Playwright
+    browser = await chromium.connectOverCDP(session.connectUrl);
+    const context = browser.contexts()[0];
+    const page = context.pages()[0] || await context.newPage();
 
     // Navigate to URL
     await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-    
-    // Wait a bit for any animations
     await page.waitForTimeout(1500);
 
     // Take "before" screenshot
     const beforeBuffer = await page.screenshot({ 
       type: 'jpeg',
       quality: 80,
-      fullPage: false, // viewport only for speed
     });
     const beforeBase64 = beforeBuffer.toString('base64');
 
     let afterBase64: string | null = null;
-
-    // If we have changes, inject them and take "after" screenshot
     const hasChanges = (cssChanges && cssChanges.trim()) || (jsChanges && jsChanges.trim());
-    
+
     if (hasChanges) {
       console.log('[Screenshot] Injecting changes...');
       
-      // Inject CSS if present
       if (cssChanges && cssChanges.trim()) {
         await page.addStyleTag({ content: cssChanges });
       }
       
-      // Inject JS if present (for text/content changes)
       if (jsChanges && jsChanges.trim()) {
         await page.evaluate((js) => {
-          try {
-            eval(js);
-          } catch (e) {
-            console.error('Failed to apply JS changes:', e);
-          }
+          try { eval(js); } catch (e) { console.error('JS error:', e); }
         }, jsChanges);
       }
       
-      // Wait for changes to apply
       await page.waitForTimeout(800);
       
-      // Take "after" screenshot
       const afterBuffer = await page.screenshot({ 
         type: 'jpeg',
         quality: 80,
-        fullPage: false,
       });
       afterBase64 = afterBuffer.toString('base64');
     }
 
-    await stagehand.close();
+    await browser.close();
 
-    console.log('[Screenshot] Success - before:', beforeBase64.length, 'chars, after:', afterBase64?.length || 0, 'chars');
-
+    console.log('[Screenshot] Success');
     return NextResponse.json({
       success: true,
       original: beforeBase64,
       optimized: afterBase64,
     });
+
   } catch (error) {
     console.error('[Screenshot] Error:', error);
     
-    // Try to close stagehand if it exists
-    if (stagehand) {
-      try {
-        await stagehand.close();
-      } catch (e) {
-        // Ignore close errors
-      }
+    if (browser) {
+      try { await browser.close(); } catch {}
     }
 
-    // Fallback to free screenshot service
+    // Fallback
     try {
-      const { url } = await request.json().catch(() => ({ url: '' }));
+      const { url } = await request.clone().json();
       if (url) {
         const fallback = await tryFallbackScreenshot(url);
         if (fallback) {
@@ -125,32 +122,22 @@ export async function POST(request: NextRequest) {
             success: true,
             original: fallback,
             optimized: null,
-            note: 'Browserbase unavailable, using fallback service',
+            note: 'Browserbase error, using fallback',
           });
         }
       }
-    } catch (e) {
-      // Ignore fallback errors
-    }
+    } catch {}
 
     return NextResponse.json(
-      { 
-        error: 'Screenshot failed', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      },
+      { error: 'Screenshot failed', details: error instanceof Error ? error.message : 'Unknown' },
       { status: 500 }
     );
   }
 }
 
-// Fallback to free service if Browserbase fails
 async function tryFallbackScreenshot(url: string): Promise<string | null> {
   const apiUrl = `https://image.thum.io/get/width/1200/crop/900/${url}`;
-  
-  const res = await fetch(apiUrl, { 
-    signal: AbortSignal.timeout(15000),
-  });
-  
+  const res = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
   if (res.ok && res.headers.get('content-type')?.includes('image')) {
     const buffer = await res.arrayBuffer();
     if (buffer.byteLength > 5000) {
@@ -162,8 +149,7 @@ async function tryFallbackScreenshot(url: string): Promise<string | null> {
 
 export async function GET() {
   return NextResponse.json({
-    message: 'Screenshot API',
-    usage: 'POST with { "url": "https://example.com", "cssChanges": "h1 { color: red; }" }',
-    features: ['before/after screenshots', 'CSS injection', 'Browserbase powered'],
+    message: 'Screenshot API - Browserbase powered',
+    usage: 'POST { url, changes: { css, js } }',
   });
 }
