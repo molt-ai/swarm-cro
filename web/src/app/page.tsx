@@ -58,11 +58,17 @@ export default function Home() {
       // Call the real analyze endpoint
       setProgress('AI analyzing page and generating hypotheses...');
       
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
+      
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         const err = await res.json();
@@ -74,7 +80,18 @@ export default function Home() {
       setResults(data);
       setStatus('done');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      let errorMsg = 'Something went wrong';
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          errorMsg = 'Request timed out - try a simpler page';
+        } else if (err.message === 'Failed to fetch' || err.message === 'Load failed') {
+          errorMsg = 'Network error - check your connection or try a different URL';
+        } else {
+          errorMsg = err.message;
+        }
+      }
+      console.error('[SwarmCRO] Analysis error:', err);
+      setError(errorMsg);
       setStatus('error');
     }
   };
