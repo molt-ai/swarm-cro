@@ -106,8 +106,8 @@ Making it production-ready.
 - [x] Update UI to support swarm experiments (🐝 Swarm tab)
 - [x] Results dashboard component (SwarmExperiment.tsx)
 - [x] Fix TypeScript/build errors
+- [x] Add real-time progress updates (SSE streaming)
 - [ ] Test end-to-end flow on production
-- [ ] Add real-time progress updates (SSE or polling)
 
 ---
 
