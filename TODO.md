@@ -99,8 +99,8 @@ Making it production-ready.
 - [x] Results analyzer (metrics, winner determination, insights)
 
 ### Tasks in Progress
-- [ ] Create API route for running experiments (`/api/swarm/run`)
-- [ ] Create API route for checking status (`/api/swarm/status`)
+- [x] Create API route for running experiments (`/api/swarm/run`)
+- [x] Create API route for test sessions (`/api/swarm/test`)
 - [ ] Update UI to support swarm experiments
 - [ ] Results dashboard component
 - [ ] Test end-to-end flow
