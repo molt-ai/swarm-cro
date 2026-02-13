@@ -1,61 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chromium } from 'playwright';
+import { generatePreviewScreenshots, generateTargetedCSS } from '@/lib/preview';
 
 export const maxDuration = 60;
 
 // Store extracted HTML in memory (in production, use Redis/DB)
-const htmlStore = new Map<string, string>();
+const htmlStore = new Map<string, { html: string; analysis: any }>();
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { url, html, css, action } = body;
+    const { action } = body;
 
     if (action === 'store') {
-      // Store the original HTML for later modification
+      // Store HTML for later preview generation
+      const { html, analysis } = body;
       const id = `page_${Date.now()}`;
-      htmlStore.set(id, html);
+      htmlStore.set(id, { html, analysis });
       return NextResponse.json({ success: true, id });
     }
 
-    if (action === 'preview') {
-      // Generate a preview with CSS modifications applied
-      const { pageId, cssOverrides } = body;
+    if (action === 'generate') {
+      // Generate before/after screenshots
+      const { pageId, html, cssOverrides, analysis } = body;
       
-      let baseHtml = htmlStore.get(pageId) || html;
+      let baseHtml = html;
+      let pageAnalysis = analysis;
+      
+      // Try to get from store if pageId provided
+      if (pageId && htmlStore.has(pageId)) {
+        const stored = htmlStore.get(pageId)!;
+        baseHtml = stored.html;
+        pageAnalysis = stored.analysis;
+      }
       
       if (!baseHtml) {
         return NextResponse.json({ error: 'No HTML to preview' }, { status: 400 });
       }
 
-      // Inject CSS overrides into the HTML
-      const modifiedHtml = injectCSS(baseHtml, cssOverrides || '');
-
-      // Take a screenshot of the modified page
-      const browser = await chromium.launch({ headless: true });
-      const context = await browser.newContext({
-        viewport: { width: 375, height: 812 }, // Mobile viewport
-      });
-      const page = await context.newPage();
-
-      // Load the modified HTML directly
-      await page.setContent(modifiedHtml, { waitUntil: 'networkidle' });
-
-      // Take screenshot
-      const screenshot = await page.screenshot({
-        type: 'jpeg',
-        quality: 80,
-        fullPage: false,
+      // Generate CSS if not provided
+      const css = cssOverrides || generateTargetedCSS(pageAnalysis || {
+        headings: [],
+        ctas: [],
+        forms: 0,
       });
 
-      await browser.close();
+      console.log('[Preview] Generating screenshots...');
+      const startTime = Date.now();
 
-      const base64 = screenshot.toString('base64');
+      const screenshots = await generatePreviewScreenshots(baseHtml, css);
+
+      const duration = Date.now() - startTime;
+      console.log(`[Preview] Generated in ${duration}ms`);
 
       return NextResponse.json({
         success: true,
-        screenshot: base64,
-        html: modifiedHtml,
+        original: screenshots.original,
+        optimized: screenshots.optimized,
+        css,
+        duration,
       });
     }
 
@@ -66,22 +68,5 @@ export async function POST(request: NextRequest) {
       { error: 'Preview generation failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
-  }
-}
-
-function injectCSS(html: string, css: string): string {
-  // Inject CSS overrides just before </head>
-  const styleTag = `
-<style id="swarmcro-optimizations">
-/* SwarmCRO Optimizations */
-${css}
-</style>`;
-
-  if (html.includes('</head>')) {
-    return html.replace('</head>', `${styleTag}\n</head>`);
-  } else if (html.includes('<body')) {
-    return html.replace('<body', `${styleTag}\n<body`);
-  } else {
-    return styleTag + html;
   }
 }

@@ -90,7 +90,7 @@ export default function Home() {
       setStatus('testing');
       setProgress('Simulating 150 AI users...');
 
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       const mockResults: SwarmResults = {
         totalAgents: 150,
@@ -122,6 +122,34 @@ export default function Home() {
         confidence: 94,
       };
 
+      // Step 4: Generate optimized preview
+      setProgress('Generating visual preview...');
+      
+      let optimizedScreenshot = '';
+      try {
+        const previewRes = await fetch('/api/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'generate',
+            html: extraction.html || `<html><body><h1>${extraction.title}</h1></body></html>`,
+            cssOverrides: cssChanges,
+            analysis: extraction.elements,
+          }),
+        });
+        
+        if (previewRes.ok) {
+          const previewData = await previewRes.json();
+          optimizedScreenshot = previewData.optimized || '';
+          // Use generated CSS if available
+          if (previewData.css) {
+            cssChanges = previewData.css;
+          }
+        }
+      } catch (e) {
+        console.log('Preview generation skipped');
+      }
+
       setStatus('done');
       setResults({
         url,
@@ -130,6 +158,7 @@ export default function Home() {
         swarm: mockResults,
         cssChanges,
         originalScreenshot: extraction.screenshot,
+        optimizedScreenshot,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -353,7 +382,7 @@ function ResultsScreen({ results, onReset }: { results: any; onReset: () => void
             onClick={() => setShowPreview(!showPreview)}
             className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-800/50 transition-colors"
           >
-            <span className="text-sm font-medium">📸 Visual Preview</span>
+            <span className="text-sm font-medium">📸 Visual Preview {results.optimizedScreenshot ? '(Before/After)' : ''}</span>
             <span className="text-gray-500">{showPreview ? '▼' : '▶'}</span>
           </button>
           
@@ -361,6 +390,7 @@ function ResultsScreen({ results, onReset }: { results: any; onReset: () => void
             <div className="p-4 border-t border-gray-800/50">
               <PreviewCompare
                 originalScreenshot={results.originalScreenshot}
+                optimizedScreenshot={results.optimizedScreenshot}
                 cssChanges={results.cssChanges}
               />
             </div>
