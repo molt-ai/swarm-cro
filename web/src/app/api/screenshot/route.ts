@@ -50,21 +50,28 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('[Screenshot] Starting Browserbase session for:', url);
+    console.log('[Screenshot] API Key present:', !!apiKey, 'Project ID:', projectId);
 
     // Create Browserbase session
     const bb = new Browserbase({ apiKey });
+    console.log('[Screenshot] Creating session...');
     const session = await bb.sessions.create({ projectId });
+    console.log('[Screenshot] Session created, connecting CDP...');
     
     // Connect via Playwright
     browser = await chromium.connectOverCDP(session.connectUrl);
+    console.log('[Screenshot] CDP connected');
     const context = browser.contexts()[0];
     const page = context.pages()[0] || await context.newPage();
 
     // Navigate to URL - use domcontentloaded for speed (networkidle is too slow)
+    console.log('[Screenshot] Navigating to URL...');
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    console.log('[Screenshot] Navigation complete, waiting for render...');
     await page.waitForTimeout(800); // Brief wait for critical renders
 
     // Take "before" screenshot
+    console.log('[Screenshot] Taking before screenshot...');
     const beforeBuffer = await page.screenshot({ 
       type: 'jpeg',
       quality: 80,
