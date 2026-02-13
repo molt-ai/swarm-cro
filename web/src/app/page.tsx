@@ -87,14 +87,18 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-950 text-gray-100">
+    <main className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-950 to-gray-900 text-gray-100">
       {/* Header */}
-      <header className="px-4 py-4 border-b border-gray-800/50 sticky top-0 bg-gray-950/90 backdrop-blur-sm z-10">
+      <header className="px-4 py-4 border-b border-gray-800/30 sticky top-0 bg-gray-950/80 backdrop-blur-md z-10">
         <div className="flex items-center justify-between max-w-lg mx-auto">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🐝</span>
-            <span className="font-bold">SwarmCRO</span>
-            <span className="text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">AI-Powered</span>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <span className="text-sm">🐝</span>
+            </div>
+            <div>
+              <span className="font-bold text-white">SwarmCRO</span>
+              <span className="text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded ml-2">AI</span>
+            </div>
           </div>
         </div>
       </header>
@@ -111,20 +115,20 @@ export default function Home() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="text-sm text-gray-400 mb-1 block">Website URL</label>
+                <label className="text-sm text-gray-400 mb-2 block font-medium">Website URL</label>
                 <input
                   type="url"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://example.com"
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="https://your-landing-page.com"
+                  className="w-full bg-gray-900/50 border border-gray-700/50 rounded-xl px-4 py-4 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all"
                   required
                 />
               </div>
               
               <button
                 type="submit"
-                className="w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-3 rounded-lg transition-colors"
+                className="w-full bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white font-semibold py-4 rounded-xl transition-all shadow-lg shadow-purple-500/25 hover:shadow-purple-500/40 active:scale-[0.98]"
               >
                 Analyze & Generate Variants →
               </button>
@@ -140,9 +144,9 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-8 p-4 bg-gray-900/50 rounded-lg border border-gray-800">
-              <p className="text-xs text-gray-500 text-center">
-                Powered by Claude AI • Based on Cialdini + Fogg psychology principles
+            <div className="mt-8 p-4 bg-gradient-to-r from-purple-900/20 to-purple-800/10 rounded-xl border border-purple-500/10">
+              <p className="text-xs text-gray-400 text-center">
+                Powered by <span className="text-purple-400">Claude AI</span> • Psychology-backed optimization
               </p>
             </div>
           </>
@@ -163,13 +167,15 @@ export default function Home() {
         )}
 
         {status === 'analyzing' && (
-          <div className="text-center py-16">
-            <div className="text-5xl mb-4 animate-pulse">🧠</div>
-            <h2 className="text-xl font-bold mb-2">Analyzing...</h2>
-            <p className="text-gray-400 text-sm">{progress}</p>
-            <p className="text-gray-500 text-xs mt-2">This may take 20-40 seconds</p>
-            <div className="mt-6 w-48 mx-auto bg-gray-800 rounded-full h-2 overflow-hidden">
-              <div className="bg-purple-500 h-full rounded-full animate-pulse" style={{ width: '60%' }} />
+          <div className="text-center py-20">
+            <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 animate-pulse">
+              <span className="text-2xl">🧠</span>
+            </div>
+            <h2 className="text-xl font-bold mb-2 text-white">Analyzing Your Page</h2>
+            <p className="text-gray-400 text-sm mb-1">{progress}</p>
+            <p className="text-gray-600 text-xs">Usually takes 20-40 seconds</p>
+            <div className="mt-8 w-56 mx-auto bg-gray-800/50 rounded-full h-1.5 overflow-hidden">
+              <div className="bg-gradient-to-r from-purple-600 to-purple-400 h-full rounded-full animate-[loading_2s_ease-in-out_infinite]" style={{ width: '70%' }} />
             </div>
           </div>
         )}
