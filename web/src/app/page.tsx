@@ -158,7 +158,18 @@ export default function Home() {
                 <Step num={1} title="Extract" desc="AI analyzes your page structure" />
                 <Step num={2} title="Research" desc="Generates CRO hypotheses based on psychology" />
                 <Step num={3} title="Propose" desc="Creates real code changes to test" />
-                <Step num={4} title="Export" desc="Copy implementable CSS/JS snippets" />
+                <Step num={4} title="Swarm Test" desc="AI personas browse and test your variants" />
+              </div>
+            </div>
+
+            {/* New Swarm Feature Banner */}
+            <div className="mt-6 p-4 bg-gradient-to-r from-purple-900/30 to-purple-800/20 rounded-xl border border-purple-500/20">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🐝</span>
+                <div>
+                  <p className="text-sm font-medium text-purple-300">New: AI Swarm Testing</p>
+                  <p className="text-xs text-gray-400">Real AI personas browse your variants and generate behavioral data</p>
+                </div>
               </div>
             </div>
 

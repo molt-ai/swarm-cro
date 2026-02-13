@@ -1,49 +1,122 @@
-# SwarmCRO
+# SwarmCRO 🐝
 
-Autonomous A/B testing platform powered by AI agent swarms.
+Autonomous A/B testing powered by AI agent swarms.
 
-## Concept
+## What it does
 
-Give any URL → agents simulate diverse users → auto-generate & test variants → output optimized code
+Give any URL → AI agents with diverse personas browse and interact → Real behavioral data → Winner determination
 
-## Architecture (based on AgentA/B paper)
+No real users needed. Get A/B test insights in minutes instead of weeks.
+
+## How it works
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
-│  URL Input      │────▶│  Site Extractor  │────▶│  Variant Gen    │
-│  (any website)  │     │  (HTML/CSS/JS)   │     │  (AI mutations) │
+│  URL Input      │────▶│  AI Analysis     │────▶│  Variant Gen    │
+│  (any website)  │     │  (structure/CRO) │     │  (hypotheses)   │
 └─────────────────┘     └──────────────────┘     └─────────────────┘
                                                           │
                                                           ▼
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │  Results &      │◀────│  Behavior        │◀────│  Agent Swarm    │
-│  Optimized Code │     │  Analysis        │     │  (personas)     │
+│  Winner         │     │  Analysis        │     │  (AI personas)  │
 └─────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-## Core Components
+## Features
 
-1. **Site Extractor** - Fetch URL, extract HTML/CSS, create modifiable clone
-2. **Persona Generator** - Create diverse user profiles (demographics, goals, behaviors)
-3. **Variant Generator** - AI generates A/B test variations
-4. **Agent Swarm** - Multiple browser agents with personas interact with variants
-5. **Behavior Analyzer** - Compare metrics, determine winners
-6. **Code Outputter** - Generate copy-paste optimized code
+### 🧠 AI Analysis
+- Extracts page structure (headings, CTAs, forms)
+- Generates CRO hypotheses based on psychology
+- Creates CSS/JS variants to test
+
+### 👥 Diverse Personas
+- 10 built-in archetypes (Impatient Mobile, Skeptical Buyer, etc.)
+- AI-generated personas from target audience descriptions
+- Each persona has unique behavior traits:
+  - Patience, thoroughness, skepticism
+  - Click patterns, scroll speed
+  - Conversion triggers and dealbreakers
+
+### 🐝 Swarm Testing
+- Real browser sessions via Browserbase
+- AI decides actions based on persona traits
+- Tracks: clicks, scrolls, time on page, hesitation
+- Detects conversions based on your goals
+
+### 📊 Results Dashboard
+- Conversion rate comparison
+- Engagement scores
+- Session-by-session breakdown
+- AI-generated insights and recommendations
+- Statistical significance indication
 
 ## Tech Stack
 
-- **Browser Automation**: Stagehand (TypeScript) or browser-use (Python)
-- **Frontend**: Next.js (mobile-first PWA)
-- **LLM**: Claude API for persona gen + analysis
-- **Infra**: Browserbase cloud for scalable browser sessions
+- **Framework**: Next.js 16 (App Router)
+- **AI**: Claude API (Sonnet)
+- **Browser**: Browserbase (cloud Playwright)
+- **Styling**: Tailwind CSS
 
-## Prior Art
+## Quick Start
 
-- AgentA/B (Amazon, 2025) - 1000 LLM agents A/B testing on Amazon.com
-- browser-use (25k stars) - AI browser automation
-- Stagehand (Browserbase) - AI-powered Playwright
-- syntheticusers.com - Synthetic UX research
+```bash
+cd web
+npm install
+cp .env.example .env.local
+# Add your API keys
+npm run dev
+```
 
-## Status
+### Environment Variables
 
-🚧 Research & Planning
+```
+ANTHROPIC_API_KEY=sk-ant-...
+BROWSERBASE_API_KEY=bb_live_...
+BROWSERBASE_PROJECT_ID=...
+```
+
+## API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/analyze` | Analyze page and generate hypotheses |
+| `POST /api/screenshot` | Before/after screenshots |
+| `POST /api/swarm/run` | Run full swarm experiment |
+| `POST /api/swarm/stream` | SSE stream for real-time progress |
+| `POST /api/swarm/test` | Single agent test session |
+
+## Architecture
+
+```
+web/src/
+├── app/
+│   ├── page.tsx          # Main UI
+│   └── api/
+│       ├── analyze/      # CRO analysis
+│       ├── screenshot/   # Visual preview
+│       └── swarm/        # Swarm experiments
+├── components/
+│   ├── ScreenshotPreview.tsx
+│   └── SwarmExperiment.tsx
+└── lib/
+    ├── persona/          # Persona types, presets, generator
+    └── swarm/            # Browser agent, runner, types
+```
+
+## Roadmap
+
+- [ ] Conversion funnel visualization
+- [ ] Session replay/video
+- [ ] Heatmaps
+- [ ] Export to Optimizely/VWO
+- [ ] Scheduled experiments
+- [ ] Team collaboration
+
+## License
+
+MIT
+
+---
+
+Built with 🐝 by AI agents
