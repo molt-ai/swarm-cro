@@ -65,6 +65,12 @@ export function SwarmExperiment({ url, variants, onComplete }: SwarmExperimentPr
     },
   });
   const [progress, setProgress] = useState(0);
+  const [progressInfo, setProgressInfo] = useState<{
+    completedSessions: number;
+    totalSessions: number;
+    estimatedTimeRemaining?: number;
+    personas?: string[];
+  }>({ completedSessions: 0, totalSessions: 0 });
   const [results, setResults] = useState<ExperimentResults | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [error, setError] = useState<string>('');
@@ -73,9 +79,10 @@ export function SwarmExperiment({ url, variants, onComplete }: SwarmExperimentPr
     setStatus('running');
     setError('');
     setProgress(0);
+    setProgressInfo({ completedSessions: 0, totalSessions: config.sessionsPerVariant * variants.length });
 
     try {
-      const res = await fetch('/api/swarm/run', {
+      const res = await fetch('/api/swarm/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -99,11 +106,65 @@ export function SwarmExperiment({ url, variants, onComplete }: SwarmExperimentPr
         throw new Error(err.details || err.error || 'Experiment failed');
       }
 
-      const data = await res.json();
-      setResults(data.results);
-      setSessions(data.sessions || []);
-      setStatus('complete');
-      onComplete?.(data.results);
+      // Handle SSE stream
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      if (!reader) {
+        throw new Error('No response stream');
+      }
+
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+        
+        for (const chunk of lines) {
+          const eventMatch = chunk.match(/event: (\w+)/);
+          const dataMatch = chunk.match(/data: (.+)/);
+          
+          if (eventMatch && dataMatch) {
+            const event = eventMatch[1];
+            const data = JSON.parse(dataMatch[1]);
+            
+            switch (event) {
+              case 'personas':
+                setProgressInfo(prev => ({ ...prev, personas: data.names }));
+                break;
+              case 'progress':
+                setProgress(data.progress);
+                setProgressInfo(prev => ({
+                  ...prev,
+                  completedSessions: data.completedSessions,
+                  totalSessions: data.totalSessions,
+                  estimatedTimeRemaining: data.estimatedTimeRemaining,
+                }));
+                break;
+              case 'complete':
+                setResults({
+                  winner: data.winner,
+                  confidence: data.confidence,
+                  isSignificant: data.isSignificant,
+                  insights: data.insights,
+                  recommendations: data.recommendations,
+                  variantResults: data.variantResults,
+                  totalSessions: data.totalSessions,
+                });
+                setSessions(data.sessions || []);
+                setStatus('complete');
+                onComplete?.(data);
+                break;
+              case 'error':
+                throw new Error(data.message);
+            }
+          }
+        }
+      }
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -279,32 +340,54 @@ export function SwarmExperiment({ url, variants, onComplete }: SwarmExperimentPr
         {/* Progress bar */}
         <div className="mb-4">
           <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>Running experiments...</span>
+            <span>
+              {progressInfo.completedSessions} / {progressInfo.totalSessions} sessions
+            </span>
             <span>{progress}%</span>
           </div>
           <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
             <div 
-              className="bg-gradient-to-r from-purple-600 to-purple-400 h-full rounded-full transition-all duration-500 animate-pulse"
+              className="bg-gradient-to-r from-purple-600 to-purple-400 h-full rounded-full transition-all duration-300"
               style={{ width: `${Math.max(5, progress)}%` }}
             />
           </div>
         </div>
 
-        {/* Activity feed */}
-        <div className="bg-gray-800/30 rounded-lg p-3 max-h-32 overflow-y-auto">
-          <p className="text-xs text-gray-500 animate-pulse">
-            🤖 Spawning browser sessions...
-          </p>
-          <p className="text-xs text-gray-500 animate-pulse">
-            👤 Loading personas...
-          </p>
-          <p className="text-xs text-gray-500 animate-pulse">
-            🌐 Agents browsing variants...
-          </p>
+        {/* Personas list */}
+        {progressInfo.personas && progressInfo.personas.length > 0 && (
+          <div className="bg-gray-800/30 rounded-lg p-3 mb-3">
+            <p className="text-xs text-gray-500 mb-2">Active Personas:</p>
+            <div className="flex flex-wrap gap-1">
+              {progressInfo.personas.map((name, i) => (
+                <span key={i} className="text-xs bg-purple-600/20 text-purple-300 px-2 py-0.5 rounded">
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Status */}
+        <div className="bg-gray-800/30 rounded-lg p-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+            <span className="text-xs text-gray-400">
+              {progress < 10 ? 'Spawning browser sessions...' :
+               progress < 30 ? 'Agents navigating pages...' :
+               progress < 70 ? 'Agents interacting with variants...' :
+               progress < 95 ? 'Collecting final metrics...' :
+               'Analyzing results...'}
+            </span>
+          </div>
+          {progressInfo.estimatedTimeRemaining && progressInfo.estimatedTimeRemaining > 0 && (
+            <p className="text-xs text-gray-600 mt-2">
+              ~{Math.ceil(progressInfo.estimatedTimeRemaining / 60)} min remaining
+            </p>
+          )}
         </div>
 
         <p className="text-center text-xs text-gray-600 mt-4">
-          This may take 2-5 minutes. Don't close this page.
+          Don't close this page while the experiment runs.
         </p>
       </div>
     );
