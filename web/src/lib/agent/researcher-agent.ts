@@ -16,11 +16,37 @@ import type {
 
 export class ResearcherAgent {
   private anthropic: Anthropic;
+  private maxRetries = 3;
 
   constructor(apiKey?: string) {
     this.anthropic = new Anthropic({
       apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
     });
+  }
+
+  /**
+   * Make an API call with retry logic for rate limits
+   */
+  private async callWithRetry<T>(
+    fn: () => Promise<T>,
+    retries = this.maxRetries
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error: any) {
+      const isRateLimit = error?.status === 429 || 
+                          error?.message?.includes('rate') ||
+                          error?.message?.includes('Rate');
+      
+      if (isRateLimit && retries > 0) {
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, this.maxRetries - retries) * 1000;
+        console.log(`[ResearcherAgent] Rate limited, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.callWithRetry(fn, retries - 1);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -49,16 +75,18 @@ export class ResearcherAgent {
   ): Promise<ResearcherAnalysis['hypotheses']> {
     const prompt = this.buildHypothesisPrompt(pageUrl, pageContent, previousResults);
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-    });
+    const response = await this.callWithRetry(() => 
+      this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      })
+    );
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     return this.parseHypotheses(text);
@@ -104,11 +132,13 @@ Focus on high-impact, easily implementable changes like:
 - Form simplification
 - Layout reordering`;
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await this.callWithRetry(() =>
+      this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    );
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     return this.parseVariant(text, hypothesis);
@@ -213,11 +243,13 @@ Provide analysis as JSON:
   "recommendations": ["recommendation 1", ...]
 }`;
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const response = await this.callWithRetry(() =>
+      this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    );
 
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     return this.parseAnalysis(text, experiment.id, results);
