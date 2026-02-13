@@ -1,27 +1,47 @@
 'use client';
 
 import { useState } from 'react';
-import { VisualPreview } from '@/components/VisualPreview';
 
-interface SwarmResults {
-  totalAgents: number;
-  variantResults: Record<string, {
-    variantId: string;
-    conversionRate: number;
-    avgTimeOnPage: number;
-    avgScrollDepth: number;
-    bounceRate: number;
-  }>;
-  winningVariant: string;
-  improvement: number;
-  confidence: number;
+interface Hypothesis {
+  hypothesis: string;
+  rationale: string;
+  expectedImpact: 'low' | 'medium' | 'high';
+}
+
+interface ProposedVariant {
+  id: string;
+  name: string;
+  description: string;
+  hypothesis: string;
+  rationale: string;
+  expectedImpact: string;
+  changes: {
+    type: string;
+    target: string;
+    property?: string;
+    newValue?: string;
+    html?: string;
+  }[];
+}
+
+interface AnalyzeResult {
+  url: string;
+  pageAnalysis: {
+    title: string;
+    headings: string[];
+    ctas: string[];
+    forms: number;
+  };
+  hypotheses: Hypothesis[];
+  proposedVariants: ProposedVariant[];
+  duration: number;
 }
 
 export default function Home() {
   const [url, setUrl] = useState('');
-  const [status, setStatus] = useState<'idle' | 'extracting' | 'generating' | 'testing' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'analyzing' | 'done' | 'error'>('idle');
   const [progress, setProgress] = useState('');
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<AnalyzeResult | null>(null);
   const [error, setError] = useState<string>('');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,136 +50,28 @@ export default function Home() {
 
     setError('');
     setResults(null);
+    setStatus('analyzing');
+    setProgress('Extracting page content...');
 
     try {
-      // Step 1: Extract the site
-      setStatus('extracting');
-      setProgress('Analyzing page structure...');
-
-      const extractRes = await fetch('/api/extract', {
+      // Call the real analyze endpoint
+      setProgress('AI analyzing page and generating hypotheses...');
+      
+      const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
       });
 
-      if (!extractRes.ok) {
-        const err = await extractRes.json();
-        throw new Error(err.error || 'Failed to extract site');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.details || err.error || 'Analysis failed');
       }
 
-      const extractData = await extractRes.json();
-      const extraction = extractData.data;
-
-      // Step 2: Generate variants
-      setStatus('generating');
-      setProgress('AI generating optimization variants...');
-
-      // Try real variant generation, fall back to mock
-      let variants = [];
-      let cssChanges = '';
+      const data = await res.json();
       
-      try {
-        const variantRes = await fetch('/api/variants', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url,
-            analysis: {
-              title: extraction.title,
-              headings: extraction.elements.headings,
-              ctas: extraction.elements.ctas,
-              forms: extraction.elements.forms,
-              meta: extraction.meta,
-            },
-            numVariants: 3,
-          }),
-        });
-
-        if (variantRes.ok) {
-          const variantData = await variantRes.json();
-          variants = variantData.data?.variants || [];
-        }
-      } catch (e) {
-        console.log('Using mock variants');
-      }
-
-      // Generate CSS changes
-      cssChanges = generateMockCSS();
-
-      // Step 3: Run swarm simulation
-      setStatus('testing');
-      setProgress('Simulating 150 AI users...');
-
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      const mockResults: SwarmResults = {
-        totalAgents: 150,
-        variantResults: {
-          control: {
-            variantId: 'control',
-            conversionRate: 2.3,
-            avgTimeOnPage: 45000,
-            avgScrollDepth: 52,
-            bounceRate: 67,
-          },
-          variant_1: {
-            variantId: 'variant_1',
-            conversionRate: 3.8,
-            avgTimeOnPage: 62000,
-            avgScrollDepth: 71,
-            bounceRate: 48,
-          },
-          variant_2: {
-            variantId: 'variant_2',
-            conversionRate: 4.1,
-            avgTimeOnPage: 58000,
-            avgScrollDepth: 68,
-            bounceRate: 51,
-          },
-        },
-        winningVariant: 'variant_2',
-        improvement: 78,
-        confidence: 94,
-      };
-
-      // Step 4: Generate optimized preview
-      setProgress('Generating visual preview...');
-      
-      let optimizedScreenshot = '';
-      try {
-        const previewRes = await fetch('/api/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'generate',
-            html: extraction.html || `<html><body><h1>${extraction.title}</h1></body></html>`,
-            cssOverrides: cssChanges,
-            analysis: extraction.elements,
-          }),
-        });
-        
-        if (previewRes.ok) {
-          const previewData = await previewRes.json();
-          optimizedScreenshot = previewData.optimized || '';
-          // Use generated CSS if available
-          if (previewData.css) {
-            cssChanges = previewData.css;
-          }
-        }
-      } catch (e) {
-        console.log('Preview generation skipped');
-      }
-
+      setResults(data);
       setStatus('done');
-      setResults({
-        url,
-        extraction,
-        variants,
-        swarm: mockResults,
-        cssChanges,
-        originalScreenshot: extraction.screenshot,
-        optimizedScreenshot,
-      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setStatus('error');
@@ -177,20 +89,22 @@ export default function Home() {
     <main className="min-h-screen bg-gray-950 text-gray-100">
       {/* Header */}
       <header className="px-4 py-4 border-b border-gray-800/50 sticky top-0 bg-gray-950/90 backdrop-blur-sm z-10">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">🐝</span>
-          <span className="font-bold">SwarmCRO</span>
-          <span className="text-xs text-gray-500 ml-2">beta</span>
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🐝</span>
+            <span className="font-bold">SwarmCRO</span>
+            <span className="text-xs text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded">AI-Powered</span>
+          </div>
         </div>
       </header>
 
-      <div className="px-4 py-6 max-w-md mx-auto">
+      <div className="px-4 py-6 max-w-lg mx-auto">
         {status === 'idle' && (
           <>
             <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold mb-2">Optimize any website</h1>
+              <h1 className="text-2xl font-bold mb-2">Optimize Any Website</h1>
               <p className="text-gray-400 text-sm">
-                AI agents simulate users to find your best converting version
+                AI analyzes your page and generates CRO hypotheses with real code changes
               </p>
             </div>
 
@@ -211,18 +125,24 @@ export default function Home() {
                 type="submit"
                 className="w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-3 rounded-lg transition-colors"
               >
-                Start Optimization →
+                Analyze & Generate Variants →
               </button>
             </form>
 
             <div className="mt-10">
               <h2 className="text-sm font-medium text-gray-400 mb-4">How it works</h2>
               <div className="space-y-3">
-                <Step num={1} title="Extract" desc="Clone your page for testing" />
-                <Step num={2} title="Generate" desc="AI creates optimized variants" />
-                <Step num={3} title="Simulate" desc="Agent swarm tests each version" />
-                <Step num={4} title="Preview" desc="See before/after visual + code" />
+                <Step num={1} title="Extract" desc="AI analyzes your page structure" />
+                <Step num={2} title="Research" desc="Generates CRO hypotheses based on psychology" />
+                <Step num={3} title="Propose" desc="Creates real code changes to test" />
+                <Step num={4} title="Export" desc="Copy implementable CSS/JS snippets" />
               </div>
+            </div>
+
+            <div className="mt-8 p-4 bg-gray-900/50 rounded-lg border border-gray-800">
+              <p className="text-xs text-gray-500 text-center">
+                Powered by Claude AI • Based on Cialdini + Fogg psychology principles
+              </p>
             </div>
           </>
         )}
@@ -230,8 +150,8 @@ export default function Home() {
         {status === 'error' && (
           <div className="text-center py-12">
             <div className="text-4xl mb-4">❌</div>
-            <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
-            <p className="text-gray-400 text-sm mb-6">{error}</p>
+            <h2 className="text-xl font-bold mb-2">Analysis Failed</h2>
+            <p className="text-gray-400 text-sm mb-6 max-w-sm mx-auto">{error}</p>
             <button
               onClick={handleReset}
               className="bg-gray-800 hover:bg-gray-700 text-white font-medium py-2 px-6 rounded-lg"
@@ -241,8 +161,16 @@ export default function Home() {
           </div>
         )}
 
-        {(status === 'extracting' || status === 'generating' || status === 'testing') && (
-          <StatusScreen status={status} progress={progress} />
+        {status === 'analyzing' && (
+          <div className="text-center py-16">
+            <div className="text-5xl mb-4 animate-pulse">🧠</div>
+            <h2 className="text-xl font-bold mb-2">Analyzing...</h2>
+            <p className="text-gray-400 text-sm">{progress}</p>
+            <p className="text-gray-500 text-xs mt-2">This may take 20-40 seconds</p>
+            <div className="mt-6 w-48 mx-auto bg-gray-800 rounded-full h-2 overflow-hidden">
+              <div className="bg-purple-500 h-full rounded-full animate-pulse" style={{ width: '60%' }} />
+            </div>
+          </div>
         )}
 
         {status === 'done' && results && (
@@ -251,44 +179,6 @@ export default function Home() {
       </div>
     </main>
   );
-}
-
-function generateMockCSS(): string {
-  return `/* SwarmCRO Optimizations - Winning Variant */
-
-/* Headline Enhancement */
-h1 {
-  font-size: 1.15em !important;
-  font-weight: 700 !important;
-  line-height: 1.2 !important;
-}
-
-/* CTA Button Optimization */
-button[type="submit"],
-.btn-primary,
-.cta-button {
-  background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%) !important;
-  color: white !important;
-  padding: 14px 28px !important;
-  font-weight: 600 !important;
-  border-radius: 8px !important;
-  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.4) !important;
-}
-
-/* Social Proof Enhancement */
-.testimonial, .review {
-  border: 2px solid #22c55e !important;
-  background: rgba(34, 197, 94, 0.05) !important;
-  padding: 12px !important;
-  border-radius: 8px !important;
-}
-
-/* Trust Signals */
-.trust-badge, .secure {
-  color: #059669 !important;
-  font-weight: 500 !important;
-}
-`;
 }
 
 function Step({ num, title, desc }: { num: number; title: string; desc: string }) {
@@ -305,129 +195,197 @@ function Step({ num, title, desc }: { num: number; title: string; desc: string }
   );
 }
 
-function StatusScreen({ status, progress }: { status: string; progress: string }) {
-  const stages = {
-    extracting: { emoji: '🔍', title: 'Analyzing page...' },
-    generating: { emoji: '🧠', title: 'Generating variants...' },
-    testing: { emoji: '🐝', title: 'Running swarm test...' },
-  };
+function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: () => void }) {
+  const [activeTab, setActiveTab] = useState<'hypotheses' | 'variants' | 'code'>('hypotheses');
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
-  const current = stages[status as keyof typeof stages] || stages.extracting;
-
-  return (
-    <div className="text-center py-16">
-      <div className="text-5xl mb-4 animate-bounce">{current.emoji}</div>
-      <h2 className="text-xl font-bold mb-2">{current.title}</h2>
-      <p className="text-gray-400 text-sm">{progress}</p>
-      <div className="mt-6 w-48 mx-auto bg-gray-800 rounded-full h-2 overflow-hidden">
-        <div 
-          className="bg-purple-500 h-full rounded-full transition-all duration-500"
-          style={{ 
-            width: status === 'extracting' ? '33%' : status === 'generating' ? '66%' : '90%' 
-          }} 
-        />
-      </div>
-    </div>
-  );
-}
-
-function ResultsScreen({ results, onReset }: { results: any; onReset: () => void }) {
-  const [copied, setCopied] = useState(false);
-  
-  const swarm = results.swarm as SwarmResults;
-  const control = swarm.variantResults.control;
-  const winner = swarm.variantResults[swarm.winningVariant];
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(results.cssChanges);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyCode = (variant: ProposedVariant, index: number) => {
+    const code = generateImplementationCode(variant);
+    navigator.clipboard.writeText(code);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="text-center">
-        <div className="text-4xl mb-2">🎉</div>
-        <h2 className="text-xl font-bold">Optimization Complete</h2>
+        <div className="text-4xl mb-2">✨</div>
+        <h2 className="text-xl font-bold">Analysis Complete</h2>
         <p className="text-sm text-gray-400 truncate">{results.url}</p>
-      </div>
-
-      {/* Main Result Card */}
-      <div className="bg-gradient-to-br from-green-600/20 to-emerald-600/10 border border-green-500/30 rounded-xl p-4">
-        <div className="text-center">
-          <p className="text-3xl font-bold text-green-400">+{swarm.improvement.toFixed(0)}%</p>
-          <p className="text-sm text-green-300">Conversion Improvement</p>
-        </div>
-        <div className="grid grid-cols-2 gap-4 mt-4">
-          <div className="text-center">
-            <p className="text-lg font-semibold text-gray-200">{control.conversionRate.toFixed(1)}%</p>
-            <p className="text-xs text-gray-500">Original</p>
-          </div>
-          <div className="text-center">
-            <p className="text-lg font-semibold text-green-400">{winner.conversionRate.toFixed(1)}%</p>
-            <p className="text-xs text-gray-500">Optimized</p>
-          </div>
-        </div>
-        <p className="text-center text-xs text-gray-500 mt-3">
-          {swarm.totalAgents} agents • {swarm.confidence.toFixed(0)}% confidence
+        <p className="text-xs text-gray-500 mt-1">
+          Completed in {(results.duration / 1000).toFixed(1)}s
         </p>
       </div>
 
-      {/* Visual Preview Section - Always show */}
-      <VisualPreview
-        url={results.url}
-        cssChanges={results.cssChanges}
-      />
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-3 gap-2">
-        <StatBox label="Bounce" original={`${control.bounceRate.toFixed(0)}%`} optimized={`${winner.bounceRate.toFixed(0)}%`} better={winner.bounceRate < control.bounceRate} />
-        <StatBox label="Scroll" original={`${control.avgScrollDepth.toFixed(0)}%`} optimized={`${winner.avgScrollDepth.toFixed(0)}%`} better={winner.avgScrollDepth > control.avgScrollDepth} />
-        <StatBox label="Time" original={`${(control.avgTimeOnPage/1000).toFixed(0)}s`} optimized={`${(winner.avgTimeOnPage/1000).toFixed(0)}s`} better={winner.avgTimeOnPage > control.avgTimeOnPage} />
+      {/* Page Analysis Summary */}
+      <div className="bg-gray-900/50 rounded-xl p-4">
+        <h3 className="text-sm font-medium text-gray-400 mb-3">Page Analysis</h3>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="bg-gray-800/50 rounded-lg p-2">
+            <p className="text-lg font-bold text-purple-400">{results.pageAnalysis.headings.length}</p>
+            <p className="text-xs text-gray-500">Headings</p>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-2">
+            <p className="text-lg font-bold text-purple-400">{results.pageAnalysis.ctas.length}</p>
+            <p className="text-xs text-gray-500">CTAs</p>
+          </div>
+          <div className="bg-gray-800/50 rounded-lg p-2">
+            <p className="text-lg font-bold text-purple-400">{results.pageAnalysis.forms}</p>
+            <p className="text-xs text-gray-500">Forms</p>
+          </div>
+        </div>
       </div>
 
-      {/* CSS Code */}
-      <div className="bg-gray-900/50 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-800/50 flex items-center justify-between">
-          <span className="text-sm font-medium">CSS Overrides</span>
-          <button 
-            onClick={handleCopy}
-            className="text-xs bg-purple-600/20 text-purple-400 px-3 py-1 rounded hover:bg-purple-600/30 transition-colors"
-          >
-            {copied ? '✓ Copied!' : 'Copy Code'}
-          </button>
-        </div>
-        <pre className="p-4 text-xs text-gray-400 overflow-x-auto max-h-48">
-          {results.cssChanges}
-        </pre>
+      {/* Tabs */}
+      <div className="flex border-b border-gray-800">
+        <TabButton 
+          active={activeTab === 'hypotheses'} 
+          onClick={() => setActiveTab('hypotheses')}
+          label={`Hypotheses (${results.hypotheses.length})`}
+        />
+        <TabButton 
+          active={activeTab === 'variants'} 
+          onClick={() => setActiveTab('variants')}
+          label={`Variants (${results.proposedVariants.length})`}
+        />
+        <TabButton 
+          active={activeTab === 'code'} 
+          onClick={() => setActiveTab('code')}
+          label="Code"
+        />
+      </div>
+
+      {/* Tab Content */}
+      <div className="space-y-3">
+        {activeTab === 'hypotheses' && (
+          <>
+            {results.hypotheses.map((h, i) => (
+              <div key={i} className="bg-gray-900/50 rounded-xl p-4">
+                <div className="flex items-start gap-2 mb-2">
+                  <ImpactBadge impact={h.expectedImpact} />
+                  <p className="text-sm font-medium text-gray-200">{h.hypothesis}</p>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">{h.rationale}</p>
+              </div>
+            ))}
+          </>
+        )}
+
+        {activeTab === 'variants' && (
+          <>
+            {results.proposedVariants.map((v, i) => (
+              <div key={i} className="bg-gray-900/50 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-gray-200">{v.name}</h4>
+                  <button
+                    onClick={() => handleCopyCode(v, i)}
+                    className="text-xs bg-purple-600/20 text-purple-400 px-3 py-1 rounded hover:bg-purple-600/30"
+                  >
+                    {copiedIndex === i ? '✓ Copied!' : 'Copy Code'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mb-3">{v.description}</p>
+                <div className="space-y-1">
+                  {v.changes.slice(0, 3).map((c, j) => (
+                    <div key={j} className="text-xs bg-gray-800/50 rounded px-2 py-1">
+                      <span className="text-purple-400">{c.type}</span>
+                      <span className="text-gray-500"> → </span>
+                      <span className="text-gray-400 truncate">{c.target}</span>
+                    </div>
+                  ))}
+                  {v.changes.length > 3 && (
+                    <p className="text-xs text-gray-600">+{v.changes.length - 3} more changes</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {activeTab === 'code' && (
+          <div className="bg-gray-900/50 rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-800/50 flex items-center justify-between">
+              <span className="text-sm font-medium">Implementation Code</span>
+              <button
+                onClick={() => {
+                  const allCode = results.proposedVariants.map(v => generateImplementationCode(v)).join('\n\n');
+                  navigator.clipboard.writeText(allCode);
+                }}
+                className="text-xs bg-purple-600/20 text-purple-400 px-3 py-1 rounded hover:bg-purple-600/30"
+              >
+                Copy All
+              </button>
+            </div>
+            <pre className="p-4 text-xs text-gray-400 overflow-x-auto max-h-64">
+              {results.proposedVariants.map(v => generateImplementationCode(v)).join('\n\n')}
+            </pre>
+          </div>
+        )}
       </div>
 
       {/* Actions */}
       <div className="space-y-2 pt-2">
         <button 
-          onClick={handleCopy}
-          className="w-full bg-purple-600 hover:bg-purple-500 text-white font-medium py-3 rounded-lg transition-colors"
-        >
-          {copied ? '✓ Copied to Clipboard!' : 'Copy Optimized CSS'}
-        </button>
-        <button 
           onClick={onReset}
-          className="w-full text-gray-500 hover:text-gray-300 font-medium py-2 transition-colors text-sm"
+          className="w-full bg-gray-800 hover:bg-gray-700 text-white font-medium py-3 rounded-lg transition-colors"
         >
-          Test another URL
+          Analyze Another URL
         </button>
       </div>
     </div>
   );
 }
 
-function StatBox({ label, original, optimized, better }: { label: string; original: string; optimized: string; better: boolean }) {
+function TabButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
-    <div className="bg-gray-900/50 rounded-lg p-2 text-center">
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className="text-xs text-gray-500 line-through">{original}</p>
-      <p className={`text-sm font-medium ${better ? 'text-green-400' : 'text-gray-200'}`}>{optimized}</p>
-    </div>
+    <button
+      onClick={onClick}
+      className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
+        active
+          ? 'text-purple-400 bg-purple-600/10 border-b-2 border-purple-500'
+          : 'text-gray-500 hover:text-gray-300'
+      }`}
+    >
+      {label}
+    </button>
   );
+}
+
+function ImpactBadge({ impact }: { impact: string }) {
+  const colors = {
+    high: 'bg-green-500/20 text-green-400',
+    medium: 'bg-yellow-500/20 text-yellow-400',
+    low: 'bg-gray-500/20 text-gray-400',
+  };
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded ${colors[impact as keyof typeof colors] || colors.medium}`}>
+      {impact}
+    </span>
+  );
+}
+
+function generateImplementationCode(variant: ProposedVariant): string {
+  let code = `/* ${variant.name} */\n/* ${variant.hypothesis} */\n\n`;
+  
+  for (const change of variant.changes) {
+    if (change.type === 'modify' && change.property === 'style') {
+      code += `/* Modify: ${change.target} */\n`;
+      code += `document.querySelectorAll('${change.target}').forEach(el => {\n`;
+      code += `  el.style.cssText += '${change.newValue}';\n`;
+      code += `});\n\n`;
+    } else if (change.type === 'modify' && change.property === 'textContent') {
+      code += `/* Change text: ${change.target} */\n`;
+      code += `document.querySelectorAll('${change.target}').forEach(el => {\n`;
+      code += `  el.textContent = '${change.newValue}';\n`;
+      code += `});\n\n`;
+    } else if (change.type === 'add' && change.html) {
+      code += `/* Add element near: ${change.target} */\n`;
+      code += `const newEl = document.createElement('div');\n`;
+      code += `newEl.innerHTML = \`${change.html.substring(0, 200)}...\`;\n`;
+      code += `document.querySelector('${change.target}')?.appendChild(newEl);\n\n`;
+    }
+  }
+  
+  return code;
 }
