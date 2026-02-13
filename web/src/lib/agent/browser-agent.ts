@@ -70,9 +70,10 @@ export class BrowserAgent {
       this.stagehand = new Stagehand({
         env: options.browserbaseApiKey ? 'BROWSERBASE' : 'LOCAL',
         apiKey: options.browserbaseApiKey || process.env.BROWSERBASE_API_KEY,
-        headless: options.headless ?? true,
-        modelName: 'claude-sonnet-4-20250514',
-        modelApiKey: process.env.ANTHROPIC_API_KEY,
+        localBrowserLaunchOptions: {
+          headless: options.headless ?? true,
+        },
+        model: 'claude-3-5-sonnet-latest',
       });
 
       await this.stagehand.init();
