@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { analyzePsychology, generatePsychologyCSS } from './psychology';
 
 export interface PreviewResult {
   original: string; // base64 screenshot
@@ -75,10 +76,25 @@ export function generateTargetedCSS(analysis: {
   ctas: string[];
   forms: number;
 }): string {
-  let css = `/* SwarmCRO Auto-Generated Optimizations */\n\n`;
+  // Run psychology analysis
+  const psychAnalysis = analyzePsychology({
+    headings: analysis.headings || [],
+    ctas: analysis.ctas || [],
+  });
+
+  let css = `/* SwarmCRO Auto-Generated Optimizations */
+/* Psychology Score: ${psychAnalysis.foggScore.overall}/100 (M:${psychAnalysis.foggScore.motivation} A:${psychAnalysis.foggScore.ability} P:${psychAnalysis.foggScore.prompt}) */
+/* Detected: ${psychAnalysis.detected.map(d => d.principle).join(', ') || 'None'} */
+/* Missing: ${psychAnalysis.missing.slice(0, 3).map(m => m.principle).join(', ')} */
+
+`;
+
+  // Add psychology-based CSS
+  css += generatePsychologyCSS(psychAnalysis);
 
   // Headline optimizations
-  css += `/* Enhanced Headlines */
+  css += `
+/* Enhanced Headlines */
 h1, .hero-title, [class*="heading"] {
   font-weight: 700 !important;
   line-height: 1.15 !important;
