@@ -12,7 +12,19 @@ export async function POST(request: NextRequest) {
   
   try {
     const body = await request.json();
-    const { url, cssChanges } = body;
+    const { url, changes } = body;
+    
+    // Parse changes (can be JSON string or object)
+    let cssChanges = '';
+    let jsChanges = '';
+    try {
+      const parsed = typeof changes === 'string' ? JSON.parse(changes) : changes;
+      cssChanges = parsed?.css || '';
+      jsChanges = parsed?.js || '';
+    } catch {
+      // If not JSON, treat as CSS only (backwards compat)
+      cssChanges = changes || '';
+    }
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -48,15 +60,30 @@ export async function POST(request: NextRequest) {
 
     let afterBase64: string | null = null;
 
-    // If we have CSS changes, inject them and take "after" screenshot
-    if (cssChanges && cssChanges.trim()) {
-      console.log('[Screenshot] Injecting CSS changes...');
+    // If we have changes, inject them and take "after" screenshot
+    const hasChanges = (cssChanges && cssChanges.trim()) || (jsChanges && jsChanges.trim());
+    
+    if (hasChanges) {
+      console.log('[Screenshot] Injecting changes...');
       
-      // Inject CSS
-      await page.addStyleTag({ content: cssChanges });
+      // Inject CSS if present
+      if (cssChanges && cssChanges.trim()) {
+        await page.addStyleTag({ content: cssChanges });
+      }
       
-      // Wait for styles to apply
-      await page.waitForTimeout(500);
+      // Inject JS if present (for text/content changes)
+      if (jsChanges && jsChanges.trim()) {
+        await page.evaluate((js) => {
+          try {
+            eval(js);
+          } catch (e) {
+            console.error('Failed to apply JS changes:', e);
+          }
+        }, jsChanges);
+      }
+      
+      // Wait for changes to apply
+      await page.waitForTimeout(800);
       
       // Take "after" screenshot
       const afterBuffer = await page.screenshot({ 

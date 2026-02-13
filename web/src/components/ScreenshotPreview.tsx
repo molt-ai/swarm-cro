@@ -4,10 +4,10 @@ import { useState } from 'react';
 
 interface ScreenshotPreviewProps {
   url: string;
-  cssChanges: string;
+  changes: string; // JSON string with { css, js }
 }
 
-export function ScreenshotPreview({ url, cssChanges }: ScreenshotPreviewProps) {
+export function ScreenshotPreview({ url, changes }: ScreenshotPreviewProps) {
   const [loading, setLoading] = useState(false);
   const [screenshots, setScreenshots] = useState<{
     original?: string;
@@ -24,7 +24,7 @@ export function ScreenshotPreview({ url, cssChanges }: ScreenshotPreviewProps) {
       const res = await fetch('/api/screenshot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, cssChanges }),
+        body: JSON.stringify({ url, changes }),
       });
 
       if (!res.ok) {

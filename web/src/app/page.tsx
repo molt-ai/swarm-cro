@@ -268,12 +268,25 @@ function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: 
   const [activeTab, setActiveTab] = useState<'hypotheses' | 'variants' | 'preview' | 'code'>('hypotheses');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
-  // Generate CSS from variants for preview
+  // Generate CSS and JS from variants for preview
   const cssChanges = results.proposedVariants
     .flatMap(v => v.changes)
     .filter(c => c.property === 'style')
     .map(c => `${c.target} { ${c.newValue} }`)
     .join('\n');
+  
+  // Generate JS for text/content changes
+  const jsChanges = results.proposedVariants
+    .flatMap(v => v.changes)
+    .filter(c => c.property === 'textContent' || c.property === 'innerHTML')
+    .map(c => {
+      const escaped = (c.newValue || '').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+      return `document.querySelectorAll('${c.target}').forEach(el => el.${c.property} = '${escaped}');`;
+    })
+    .join('\n');
+  
+  // Combined changes for preview
+  const allChanges = JSON.stringify({ css: cssChanges, js: jsChanges });
 
   const handleCopyCode = (variant: ProposedVariant, index: number) => {
     const code = generateImplementationCode(variant);
@@ -385,7 +398,7 @@ function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: 
         )}
 
         {activeTab === 'preview' && (
-          <ScreenshotPreview url={results.url} cssChanges={cssChanges} />
+          <ScreenshotPreview url={results.url} changes={allChanges} />
         )}
 
         {activeTab === 'code' && (
