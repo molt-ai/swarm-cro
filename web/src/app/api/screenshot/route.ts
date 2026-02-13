@@ -15,11 +15,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // Try multiple screenshot services in order
+    // Try multiple free screenshot services
     const services = [
-      tryScreenshotMachine,
-      tryThumbio,
+      tryThumio,
       tryPagepeeker,
+      tryWebsiteScreenshot,
     ];
 
     for (const service of services) {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({
             success: true,
             original: result,
-            optimized: null, // Would need Browserbase for CSS injection
+            optimized: null,
             note: 'Showing original page. CSS preview requires browser automation.',
           });
         }
@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // All services failed
     return NextResponse.json({
       success: false,
       error: 'Screenshot services temporarily unavailable',
@@ -54,29 +53,30 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Screenshot Machine (has generous free tier)
-async function tryScreenshotMachine(url: string): Promise<string | null> {
-  const key = 'free';  // They have a 'free' key that works for basic screenshots
-  const encodedUrl = encodeURIComponent(url);
-  const apiUrl = `https://api.screenshotmachine.com/?key=${key}&url=${encodedUrl}&dimension=1024x768&format=jpg&delay=2000`;
+// Thum.io - completely free, no key needed
+async function tryThumio(url: string): Promise<string | null> {
+  const apiUrl = `https://image.thum.io/get/width/1200/crop/900/${url}`;
   
   const res = await fetch(apiUrl, { 
-    signal: AbortSignal.timeout(20000) 
+    signal: AbortSignal.timeout(25000),
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+    }
   });
   
   if (res.ok && res.headers.get('content-type')?.includes('image')) {
     const buffer = await res.arrayBuffer();
-    if (buffer.byteLength > 5000) { // Valid image is usually > 5KB
+    if (buffer.byteLength > 5000) {
       return Buffer.from(buffer).toString('base64');
     }
   }
   return null;
 }
 
-// Thum.io (free tier)
-async function tryThumbio(url: string): Promise<string | null> {
+// Pagepeeker - free tier
+async function tryPagepeeker(url: string): Promise<string | null> {
   const encodedUrl = encodeURIComponent(url);
-  const apiUrl = `https://image.thum.io/get/width/1024/crop/768/${url}`;
+  const apiUrl = `https://api.pagepeeker.com/v2/thumbs.php?size=x&url=${encodedUrl}`;
   
   const res = await fetch(apiUrl, { 
     signal: AbortSignal.timeout(20000) 
@@ -91,10 +91,10 @@ async function tryThumbio(url: string): Promise<string | null> {
   return null;
 }
 
-// Pagepeeker (free)
-async function tryPagepeeker(url: string): Promise<string | null> {
+// Website Screenshot API (s.wordpress.com)
+async function tryWebsiteScreenshot(url: string): Promise<string | null> {
   const encodedUrl = encodeURIComponent(url);
-  const apiUrl = `https://api.pagepeeker.com/v2/thumbs.php?size=l&url=${encodedUrl}`;
+  const apiUrl = `https://s.wordpress.com/mshots/v1/${encodedUrl}?w=1200&h=900`;
   
   const res = await fetch(apiUrl, { 
     signal: AbortSignal.timeout(20000) 
@@ -113,6 +113,5 @@ export async function GET() {
   return NextResponse.json({
     message: 'Screenshot API',
     usage: 'POST with { "url": "https://example.com" }',
-    services: ['screenshotmachine', 'thum.io', 'pagepeeker'],
   });
 }
