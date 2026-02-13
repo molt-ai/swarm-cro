@@ -11,7 +11,8 @@ import Browserbase from '@browserbasehq/sdk';
 import { chromium, type Browser, type Page, type ElementHandle } from 'playwright-core';
 import type { Persona } from '../persona';
 import type { 
-  AgentAction, 
+  AgentAction,
+  AgentActionType,
   AgentRunConfig, 
   AgentSession, 
   SessionMetrics,

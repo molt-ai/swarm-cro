@@ -101,9 +101,10 @@ Making it production-ready.
 ### Tasks in Progress
 - [x] Create API route for running experiments (`/api/swarm/run`)
 - [x] Create API route for test sessions (`/api/swarm/test`)
-- [ ] Update UI to support swarm experiments
-- [ ] Results dashboard component
+- [x] Update UI to support swarm experiments (🐝 Swarm tab)
+- [x] Results dashboard component (SwarmExperiment.tsx)
 - [ ] Test end-to-end flow
+- [ ] Fix any TypeScript/build errors
 
 ---
 

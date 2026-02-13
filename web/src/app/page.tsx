@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ScreenshotPreview } from '@/components/ScreenshotPreview';
+import { SwarmExperiment } from '@/components/SwarmExperiment';
 
 interface Hypothesis {
   hypothesis: string;
@@ -265,7 +266,7 @@ function ProgressStep({ step, label, active, done }: { step: number; label: stri
 }
 
 function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: () => void }) {
-  const [activeTab, setActiveTab] = useState<'hypotheses' | 'variants' | 'preview' | 'code'>('hypotheses');
+  const [activeTab, setActiveTab] = useState<'hypotheses' | 'variants' | 'preview' | 'swarm' | 'code'>('hypotheses');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   
   // Generate CSS and JS from variants for preview
@@ -344,6 +345,11 @@ function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: 
           label="📸 Preview"
         />
         <TabButton 
+          active={activeTab === 'swarm'} 
+          onClick={() => setActiveTab('swarm')}
+          label="🐝 Swarm"
+        />
+        <TabButton 
           active={activeTab === 'code'} 
           onClick={() => setActiveTab('code')}
           label="Code"
@@ -399,6 +405,38 @@ function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: 
 
         {activeTab === 'preview' && (
           <ScreenshotPreview url={results.url} changes={allChanges} />
+        )}
+
+        {activeTab === 'swarm' && (
+          <SwarmExperiment 
+            url={results.url}
+            variants={[
+              // Control variant (no changes)
+              {
+                id: 'control',
+                name: 'Control (Original)',
+                isControl: true,
+              },
+              // Create variant from proposed changes
+              ...results.proposedVariants.slice(0, 2).map((v, i) => ({
+                id: `variant_${i + 1}`,
+                name: v.name,
+                isControl: false,
+                css: v.changes
+                  .filter(c => c.property === 'style')
+                  .map(c => `${c.target} { ${c.newValue} }`)
+                  .join('\n'),
+                js: v.changes
+                  .filter(c => c.property === 'textContent' || c.property === 'innerHTML')
+                  .map(c => {
+                    const escaped = (c.newValue || '').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+                    return `document.querySelectorAll('${c.target}').forEach(el => el.${c.property} = '${escaped}');`;
+                  })
+                  .join('\n'),
+                hypothesis: v.hypothesis,
+              })),
+            ]}
+          />
         )}
 
         {activeTab === 'code' && (
