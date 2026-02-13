@@ -60,9 +60,9 @@ export async function POST(request: NextRequest) {
     const context = browser.contexts()[0];
     const page = context.pages()[0] || await context.newPage();
 
-    // Navigate to URL
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-    await page.waitForTimeout(1500);
+    // Navigate to URL - use domcontentloaded for speed (networkidle is too slow)
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+    await page.waitForTimeout(800); // Brief wait for critical renders
 
     // Take "before" screenshot
     const beforeBuffer = await page.screenshot({ 
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         }, jsChanges);
       }
       
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(400);
       
       const afterBuffer = await page.screenshot({ 
         type: 'jpeg',
@@ -106,30 +106,35 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('[Screenshot] Error:', error);
+    const errMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[Screenshot] Error:', errMsg);
     
     if (browser) {
       try { await browser.close(); } catch {}
     }
 
-    // Fallback
+    // Fallback to free service
     try {
-      const { url } = await request.clone().json();
-      if (url) {
-        const fallback = await tryFallbackScreenshot(url);
+      const body = await request.clone().json().catch(() => ({}));
+      const fallbackUrl = body.url;
+      if (fallbackUrl) {
+        console.log('[Screenshot] Trying fallback for:', fallbackUrl);
+        const fallback = await tryFallbackScreenshot(fallbackUrl);
         if (fallback) {
           return NextResponse.json({
             success: true,
             original: fallback,
             optimized: null,
-            note: 'Browserbase error, using fallback',
+            note: 'Used fallback service (Browserbase timed out)',
           });
         }
       }
-    } catch {}
+    } catch (fallbackErr) {
+      console.error('[Screenshot] Fallback also failed:', fallbackErr);
+    }
 
     return NextResponse.json(
-      { error: 'Screenshot failed', details: error instanceof Error ? error.message : 'Unknown' },
+      { error: 'Screenshot failed', details: errMsg },
       { status: 500 }
     );
   }
