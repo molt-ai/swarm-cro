@@ -4,7 +4,7 @@ export const maxDuration = 30;
 
 /**
  * POST /api/screenshot
- * For now, return a placeholder - full Browserbase screenshot requires more setup
+ * Takes a screenshot of a URL using free screenshot services
  */
 export async function POST(request: NextRequest) {
   try {
@@ -15,40 +15,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     }
 
-    // Use microlink for screenshots (free tier available)
-    const encodedUrl = encodeURIComponent(url);
-    const screenshotApiUrl = `https://api.microlink.io/?url=${encodedUrl}&screenshot=true&meta=false&embed=screenshot.url`;
-    
-    try {
-      const res = await fetch(screenshotApiUrl, { 
-        signal: AbortSignal.timeout(15000) 
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data?.screenshot?.url) {
-          // Fetch and convert to base64
-          const imgRes = await fetch(data.data.screenshot.url);
-          if (imgRes.ok) {
-            const buffer = await imgRes.arrayBuffer();
-            return NextResponse.json({
-              success: true,
-              original: Buffer.from(buffer).toString('base64'),
-              optimized: null, // Would need full browser for CSS injection
-              note: 'CSS preview requires Browserbase - showing original only',
-            });
-          }
+    // Try multiple screenshot services in order
+    const services = [
+      tryScreenshotMachine,
+      tryThumbio,
+      tryPagepeeker,
+    ];
+
+    for (const service of services) {
+      try {
+        const result = await service(url);
+        if (result) {
+          return NextResponse.json({
+            success: true,
+            original: result,
+            optimized: null, // Would need Browserbase for CSS injection
+            note: 'Showing original page. CSS preview requires browser automation.',
+          });
         }
+      } catch (e) {
+        console.log(`[Screenshot] Service failed:`, e);
+        continue;
       }
-    } catch (e) {
-      console.log('[Screenshot] Microlink failed:', e);
     }
 
+    // All services failed
     return NextResponse.json({
       success: false,
-      error: 'Screenshot service unavailable',
-      note: 'Full visual preview coming soon',
-    });
+      error: 'Screenshot services temporarily unavailable',
+      note: 'Try again in a few minutes',
+    }, { status: 503 });
   } catch (error) {
     console.error('[Screenshot] Error:', error);
     return NextResponse.json(
@@ -58,10 +54,65 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Screenshot Machine (has generous free tier)
+async function tryScreenshotMachine(url: string): Promise<string | null> {
+  const key = 'free';  // They have a 'free' key that works for basic screenshots
+  const encodedUrl = encodeURIComponent(url);
+  const apiUrl = `https://api.screenshotmachine.com/?key=${key}&url=${encodedUrl}&dimension=1024x768&format=jpg&delay=2000`;
+  
+  const res = await fetch(apiUrl, { 
+    signal: AbortSignal.timeout(20000) 
+  });
+  
+  if (res.ok && res.headers.get('content-type')?.includes('image')) {
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > 5000) { // Valid image is usually > 5KB
+      return Buffer.from(buffer).toString('base64');
+    }
+  }
+  return null;
+}
+
+// Thum.io (free tier)
+async function tryThumbio(url: string): Promise<string | null> {
+  const encodedUrl = encodeURIComponent(url);
+  const apiUrl = `https://image.thum.io/get/width/1024/crop/768/${url}`;
+  
+  const res = await fetch(apiUrl, { 
+    signal: AbortSignal.timeout(20000) 
+  });
+  
+  if (res.ok && res.headers.get('content-type')?.includes('image')) {
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > 5000) {
+      return Buffer.from(buffer).toString('base64');
+    }
+  }
+  return null;
+}
+
+// Pagepeeker (free)
+async function tryPagepeeker(url: string): Promise<string | null> {
+  const encodedUrl = encodeURIComponent(url);
+  const apiUrl = `https://api.pagepeeker.com/v2/thumbs.php?size=l&url=${encodedUrl}`;
+  
+  const res = await fetch(apiUrl, { 
+    signal: AbortSignal.timeout(20000) 
+  });
+  
+  if (res.ok && res.headers.get('content-type')?.includes('image')) {
+    const buffer = await res.arrayBuffer();
+    if (buffer.byteLength > 5000) {
+      return Buffer.from(buffer).toString('base64');
+    }
+  }
+  return null;
+}
+
 export async function GET() {
   return NextResponse.json({
     message: 'Screenshot API',
     usage: 'POST with { "url": "https://example.com" }',
-    note: 'Currently using Microlink for screenshots. Full Browserbase preview coming soon.',
+    services: ['screenshotmachine', 'thum.io', 'pagepeeker'],
   });
 }

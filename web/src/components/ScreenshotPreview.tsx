@@ -33,6 +33,16 @@ export function ScreenshotPreview({ url, cssChanges }: ScreenshotPreviewProps) {
       }
 
       const data = await res.json();
+      
+      // Handle API returning success: false with 200 status
+      if (data.success === false) {
+        throw new Error(data.error || 'Screenshot service unavailable');
+      }
+      
+      if (!data.original) {
+        throw new Error('No screenshot returned');
+      }
+      
       setScreenshots({
         original: data.original,
         optimized: data.optimized,
