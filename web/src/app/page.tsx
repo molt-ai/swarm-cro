@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ScreenshotPreview } from '@/components/ScreenshotPreview';
 
 interface Hypothesis {
   hypothesis: string;
@@ -196,8 +197,15 @@ function Step({ num, title, desc }: { num: number; title: string; desc: string }
 }
 
 function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: () => void }) {
-  const [activeTab, setActiveTab] = useState<'hypotheses' | 'variants' | 'code'>('hypotheses');
+  const [activeTab, setActiveTab] = useState<'hypotheses' | 'variants' | 'preview' | 'code'>('hypotheses');
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  
+  // Generate CSS from variants for preview
+  const cssChanges = results.proposedVariants
+    .flatMap(v => v.changes)
+    .filter(c => c.property === 'style')
+    .map(c => `${c.target} { ${c.newValue} }`)
+    .join('\n');
 
   const handleCopyCode = (variant: ProposedVariant, index: number) => {
     const code = generateImplementationCode(variant);
@@ -248,6 +256,11 @@ function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: 
           active={activeTab === 'variants'} 
           onClick={() => setActiveTab('variants')}
           label={`Variants (${results.proposedVariants.length})`}
+        />
+        <TabButton 
+          active={activeTab === 'preview'} 
+          onClick={() => setActiveTab('preview')}
+          label="📸 Preview"
         />
         <TabButton 
           active={activeTab === 'code'} 
@@ -301,6 +314,10 @@ function ResultsScreen({ results, onReset }: { results: AnalyzeResult; onReset: 
               </div>
             ))}
           </>
+        )}
+
+        {activeTab === 'preview' && (
+          <ScreenshotPreview url={results.url} cssChanges={cssChanges} />
         )}
 
         {activeTab === 'code' && (
