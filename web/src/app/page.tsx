@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PreviewCompare } from '@/components/PreviewCompare';
+import { VisualPreview } from '@/components/VisualPreview';
 
 interface SwarmResults {
   totalAgents: number;
@@ -332,7 +332,6 @@ function StatusScreen({ status, progress }: { status: string; progress: string }
 }
 
 function ResultsScreen({ results, onReset }: { results: any; onReset: () => void }) {
-  const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
   
   const swarm = results.swarm as SwarmResults;
@@ -375,51 +374,11 @@ function ResultsScreen({ results, onReset }: { results: any; onReset: () => void
         </p>
       </div>
 
-      {/* Visual Preview Section */}
-      {results.originalScreenshot && (
-        <div className="bg-gray-900/50 rounded-xl overflow-hidden">
-          <button
-            onClick={() => setShowPreview(!showPreview)}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-800/50 transition-colors"
-          >
-            <span className="text-sm font-medium">📸 Visual Preview {results.optimizedScreenshot ? '(Before/After)' : ''}</span>
-            <span className="text-gray-500">{showPreview ? '▼' : '▶'}</span>
-          </button>
-          
-          {showPreview && (
-            <div className="p-4 border-t border-gray-800/50">
-              <PreviewCompare
-                originalScreenshot={results.originalScreenshot}
-                optimizedScreenshot={results.optimizedScreenshot}
-                cssChanges={results.cssChanges}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Winning Changes */}
-      <div className="bg-gray-900/50 rounded-xl p-4">
-        <h3 className="text-sm font-medium text-gray-400 mb-3">Winning Changes</h3>
-        <ul className="space-y-2">
-          <li className="flex items-start gap-2 text-sm">
-            <span className="text-green-400">✓</span>
-            <span className="text-gray-300">Enhanced headline visibility</span>
-          </li>
-          <li className="flex items-start gap-2 text-sm">
-            <span className="text-green-400">✓</span>
-            <span className="text-gray-300">Optimized CTA button styling</span>
-          </li>
-          <li className="flex items-start gap-2 text-sm">
-            <span className="text-green-400">✓</span>
-            <span className="text-gray-300">Added social proof emphasis</span>
-          </li>
-          <li className="flex items-start gap-2 text-sm">
-            <span className="text-green-400">✓</span>
-            <span className="text-gray-300">Improved trust signals</span>
-          </li>
-        </ul>
-      </div>
+      {/* Visual Preview Section - Always show */}
+      <VisualPreview
+        url={results.url}
+        cssChanges={results.cssChanges}
+      />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-2">
