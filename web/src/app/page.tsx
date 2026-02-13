@@ -7,33 +7,57 @@ export default function Home() {
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'testing' | 'done'>('idle');
   const [results, setResults] = useState<any>(null);
 
+  const [extraction, setExtraction] = useState<any>(null);
+  const [error, setError] = useState<string>('');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url) return;
 
     setStatus('analyzing');
-    // TODO: Call API to start analysis
-    
-    // Simulate for now
-    setTimeout(() => {
+    setError('');
+
+    try {
+      // Step 1: Extract the site
+      const extractRes = await fetch('/api/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+
+      if (!extractRes.ok) {
+        const err = await extractRes.json();
+        throw new Error(err.error || 'Failed to extract site');
+      }
+
+      const extractData = await extractRes.json();
+      setExtraction(extractData.data);
+
+      // Step 2: Run swarm tests (simulated for now)
       setStatus('testing');
-      setTimeout(() => {
-        setStatus('done');
-        setResults({
-          original: { conversionRate: 2.3, bounceRate: 67 },
-          winner: { 
-            conversionRate: 4.1, 
-            bounceRate: 52,
-            improvement: '+78%',
-            changes: [
-              'Simplified headline copy',
-              'Added social proof badge',
-              'Reduced form fields from 5 to 3',
-            ]
-          }
-        });
-      }, 3000);
-    }, 2000);
+      
+      // TODO: Replace with actual swarm API call
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      setStatus('done');
+      setResults({
+        original: { conversionRate: 2.3, bounceRate: 67 },
+        winner: { 
+          conversionRate: 4.1, 
+          bounceRate: 52,
+          improvement: '+78%',
+          changes: [
+            'Simplified headline copy',
+            'Added social proof badge', 
+            'Reduced form fields from 5 to 3',
+          ]
+        },
+        extraction: extractData.data,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+      setStatus('idle');
+    }
   };
 
   return (
