@@ -66,11 +66,13 @@ Turning raw behavioral data into actionable insights.
 - [x] Winner determination with confidence intervals
 - [x] Behavioral pattern detection (exit reasons, conversion triggers)
 
-### 4.2 Results Dashboard
-- [ ] Visual comparison of variants
-- [ ] Conversion funnel visualization
-- [ ] Heatmap-style click/scroll data
-- [ ] Export winning variant code
+### 4.2 Results Dashboard ✅
+- [x] Visual comparison of variants (side-by-side metrics)
+- [x] Session list with persona details
+- [x] Insights and recommendations tabs
+- [ ] Conversion funnel visualization (future)
+- [ ] Heatmap-style click/scroll data (future)
+- [ ] Export winning variant code (future)
 
 ---
 
@@ -103,8 +105,9 @@ Making it production-ready.
 - [x] Create API route for test sessions (`/api/swarm/test`)
 - [x] Update UI to support swarm experiments (🐝 Swarm tab)
 - [x] Results dashboard component (SwarmExperiment.tsx)
-- [ ] Test end-to-end flow
-- [ ] Fix any TypeScript/build errors
+- [x] Fix TypeScript/build errors
+- [ ] Test end-to-end flow on production
+- [ ] Add real-time progress updates (SSE or polling)
 
 ---
 
