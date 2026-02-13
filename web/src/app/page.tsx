@@ -184,16 +184,40 @@ export default function Home() {
         )}
 
         {status === 'analyzing' && (
-          <div className="text-center py-20">
-            <div className="w-16 h-16 mx-auto mb-6 bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 animate-pulse">
-              <span className="text-2xl">🧠</span>
+          <div className="py-12">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 animate-pulse">
+                <span className="text-2xl">🧠</span>
+              </div>
+              <h2 className="text-xl font-bold text-white">Analyzing Your Page</h2>
+              <p className="text-gray-500 text-sm mt-1">This usually takes 20-40 seconds</p>
             </div>
-            <h2 className="text-xl font-bold mb-2 text-white">Analyzing Your Page</h2>
-            <p className="text-gray-400 text-sm mb-1">{progress}</p>
-            <p className="text-gray-600 text-xs">Usually takes 20-40 seconds</p>
-            <div className="mt-8 w-56 mx-auto bg-gray-800/50 rounded-full h-1.5 overflow-hidden">
-              <div className="bg-gradient-to-r from-purple-600 to-purple-400 h-full rounded-full animate-[loading_2s_ease-in-out_infinite]" style={{ width: '70%' }} />
+            
+            {/* Progress Steps */}
+            <div className="space-y-3 max-w-xs mx-auto">
+              <ProgressStep 
+                step={1} 
+                label="Fetching page content" 
+                active={progress.includes('Extracting')} 
+                done={progress.includes('AI analyzing')}
+              />
+              <ProgressStep 
+                step={2} 
+                label="AI analyzing structure" 
+                active={progress.includes('AI analyzing')} 
+                done={progress.includes('Generating')}
+              />
+              <ProgressStep 
+                step={3} 
+                label="Generating hypotheses" 
+                active={progress.includes('Generating') || progress.includes('hypotheses')} 
+                done={false}
+              />
             </div>
+            
+            <p className="text-center text-gray-600 text-xs mt-6">
+              Tip: Some sites with heavy bot protection may take longer
+            </p>
           </div>
         )}
 
@@ -215,6 +239,27 @@ function Step({ num, title, desc }: { num: number; title: string; desc: string }
         <p className="font-medium text-gray-200">{title}</p>
         <p className="text-sm text-gray-500">{desc}</p>
       </div>
+    </div>
+  );
+}
+
+function ProgressStep({ step, label, active, done }: { step: number; label: string; active: boolean; done: boolean }) {
+  return (
+    <div className={`flex items-center gap-3 p-3 rounded-lg transition-all ${
+      active ? 'bg-purple-600/20 border border-purple-500/30' : 
+      done ? 'bg-gray-800/30' : 'bg-gray-900/30'
+    }`}>
+      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+        done ? 'bg-green-500 text-white' :
+        active ? 'bg-purple-500 text-white animate-pulse' : 
+        'bg-gray-700 text-gray-400'
+      }`}>
+        {done ? '✓' : step}
+      </div>
+      <span className={`text-sm ${active ? 'text-white' : done ? 'text-gray-400' : 'text-gray-500'}`}>
+        {label}
+      </span>
+      {active && <span className="ml-auto text-purple-400 text-xs animate-pulse">...</span>}
     </div>
   );
 }
