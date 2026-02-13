@@ -70,11 +70,12 @@ export async function POST(request: NextRequest) {
     console.log('[Screenshot] Navigation complete, waiting for render...');
     await page.waitForTimeout(800); // Brief wait for critical renders
 
-    // Take "before" screenshot
+    // Take "before" screenshot (full page)
     console.log('[Screenshot] Taking before screenshot...');
     const beforeBuffer = await page.screenshot({ 
       type: 'jpeg',
       quality: 80,
+      fullPage: true,
     });
     const beforeBase64 = beforeBuffer.toString('base64');
 
@@ -83,15 +84,19 @@ export async function POST(request: NextRequest) {
 
     if (hasChanges) {
       console.log('[Screenshot] Injecting changes...');
+      console.log('[Screenshot] CSS to inject:', cssChanges?.substring(0, 500));
+      console.log('[Screenshot] JS to inject:', jsChanges?.substring(0, 500));
       
       if (cssChanges && cssChanges.trim()) {
         await page.addStyleTag({ content: cssChanges });
+        console.log('[Screenshot] CSS injected');
       }
       
       if (jsChanges && jsChanges.trim()) {
         await page.evaluate((js) => {
           try { eval(js); } catch (e) { console.error('JS error:', e); }
         }, jsChanges);
+        console.log('[Screenshot] JS executed');
       }
       
       await page.waitForTimeout(400);
@@ -99,6 +104,7 @@ export async function POST(request: NextRequest) {
       const afterBuffer = await page.screenshot({ 
         type: 'jpeg',
         quality: 80,
+        fullPage: true,
       });
       afterBase64 = afterBuffer.toString('base64');
     }

@@ -124,13 +124,23 @@ Respond with JSON:
   ]
 }
 
-Focus on high-impact, easily implementable changes like:
-- Headline copy changes
-- CTA button text, color, or size
-- Adding urgency elements
-- Social proof additions
-- Form simplification
-- Layout reordering`;
+Focus on high-impact, VISUALLY DIFFERENT changes. Include at least 2-3 style changes:
+- CTA button: background-color, padding, font-size, border-radius
+- Headlines: font-size, color, font-weight
+- Sections: background-color, padding, border
+- Text color changes for emphasis
+- Adding urgency with color (red, orange accents)
+
+IMPORTANT: Always include multiple "property": "style" changes with valid CSS values.
+Example style change:
+{
+  "type": "modify",
+  "target": "button, .btn, [type='submit']",
+  "property": "style",
+  "newValue": "background-color: #ff4444 !important; color: white !important; font-size: 1.2em !important; padding: 15px 30px !important;"
+}
+
+Use !important to override existing styles. Use broad selectors that will match.`;
 
     const response = await this.callWithRetry(() =>
       this.anthropic.messages.create({
